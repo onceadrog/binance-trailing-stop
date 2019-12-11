@@ -1,5 +1,5 @@
 """
-    Подробная информация о боте на сайте bablofil.ru/bot-dlya-binance
+    Detailed information about the bot on bablofil.ru/bot-dlya-binance
 """
 import sqlite3
 import logging
@@ -17,19 +17,19 @@ bot = Binance(
 )
 
 settings = dict(
-    symbol='EOSBTC',            # Пара для отслеживания
-    strategy="Short",           # Стратегия - Long (повышение), Short (понижение)           
-    stop_loss_perc = 0.5,       # % оставания от цены
-    stop_loss_fixed = 0,        # Изначальный stop-loss, можно установить руками нужную сумму, потом бот подтянет.
-                                # Можно указать 0, тогда бот высчитает, возьмет текущую цену и применит к ней процент
-    amount = 0.0015             # Кол-во монет, которое планируем продать (в случае Long) или купить (в случае Short)
-                                # Если указываем Long, то альты для продажи (Например, продать 0.1 ETH в паре ETHBTC)
-                                # Если Short, то кол-во, на которое покупать, например купить на 0.1 BTC по паре ETHBTC
+    symbol='EOSBTC',            # A pair for tracking
+    strategy="Short",           # Strategy - Long (up), Short (down)           
+    stop_loss_perc = 0.5,       # % remaining from the price
+    stop_loss_fixed = 0,        # The initial stop-loss can be set by hand, then the bot will tighten.
+                                # You can specify 0, then the bot will calculate, take the current price and apply a percentage to it
+    amount = 0.0015             # Number of coins we plan to sell (in case of Long) or buy (in case of Short)
+                                # If we specify Long, then the violas are for sale (e.g., sell 0.1 ETH in a pair of ETHBTCs)
+                                # If Short, then the amount of money to buy, for example, to buy at 0.1 BTC on ETHBTC pair
 )
 
 multiplier = -1 if settings['strategy'] == "Long" else 1
 
-print("Получаем настройки пар с биржи")
+print("Getting pairs' settings from the stock exchange")
 symbols = bot.exchangeInfo()['symbols']
 step_sizes = {symbol['symbol']:symbol for symbol in symbols}
 for symbol in symbols:
@@ -40,35 +40,35 @@ for symbol in symbols:
 
 while True:
     try:
-        print('Проверяю пару {pair}, стратегия {strategy}'.format(pair=settings['symbol'], strategy=settings['strategy']))
-        # Получаем текущие курсы по паре
+        print('Checking the pair {pair}, strategy {strategy}'.format(pair=settings['symbol'], strategy=settings['strategy'])
+        # We're getting our current courses in pairs
         current_rates = bot.depth(symbol=settings['symbol'], limit=5)
 
         bid=float(current_rates['bids'][0][0])
         ask=float(current_rates['asks'][0][0])
 
-        # Если играем на повышение, то ориентируемся на цены, по которым продают, иначе на цены, по которым покупают
+        # If we play for a raise, we are guided by the prices at which they are sold, otherwise by the prices at which they are bought
         curr_rate = bid if settings['strategy'] == "Long" else ask
         
         if settings['stop_loss_fixed'] == 0:
            settings['stop_loss_fixed'] = (curr_rate/100) * (settings['stop_loss_perc']*multiplier+100)
  
-        print("Текущие курсы bid {bid:0.8f}, ask {ask:0.8f}, выбрана {cr:0.8f} stop_loss {sl:0.8f}".format(
+        print("Current bid {bid:0.8f}, ask {ask:0.8f}, selected {cr:0.8f} stop_loss {sl:0.8f}".format(
             bid=bid, ask=ask, cr=curr_rate, sl=settings['stop_loss_fixed']
         ))
 
-        # Считаем, каким был бы stop-loss, если применить к нему %
+        # We think what would be the stop-loss if you applied it to %
         curr_rate_applied = (curr_rate/100) * (settings['stop_loss_perc']*multiplier+100)
 
         if settings['strategy'] == "Long":
-            # Выбрана стратегия Long, пытаемся продать монеты как можно выгоднее
+            # Long strategy chosen, trying to sell coins as profitable as possible
             if curr_rate > settings['stop_loss_fixed']:
-                print("Текущая цена выше цены Stop-Loss")
+                print("Current price is higher than Stop-Loss price")
                 if curr_rate_applied > settings['stop_loss_fixed']:
-                    print("Пора изменять stop-loss, новое значение {sl:0.8f}".format(sl=curr_rate_applied))                    
+                    print("It's time to change the stop-loss, the new value {sl:0.8f}".format(sl=curr_rate_applied))                    
                     settings['stop_loss_fixed'] = curr_rate_applied
             else:
-                # Текущая цена ниже или равна stop loss, продажа по рынку
+                # Current price is lower or equal to stop loss, market sale
                 res = bot.createOrder(
                     symbol=settings['symbol'],
                     recvWindow=15000,
@@ -76,21 +76,21 @@ while True:
                     type='MARKET',
                     quantity=settings['amount']
                 )
-                print('Результат создания ордера', res)
+                print('The result of the order creation', res)
                 if 'orderId' in res:
-                    # Создание ордера прошло успешно, выход
+                    # The creation of the order was a success, the exit
                     break
         else:
-            # Выбрана стратегия Short, пытаемся купить монеты как можно выгоднее
+            # Short strategy chosen, trying to buy coins as profitable as possible
             if curr_rate < settings['stop_loss_fixed']:
-                print("Текущая цена ниже stop-loss")
+                print("Current price is lower than stop-loss")
                 if curr_rate_applied < settings['stop_loss_fixed']:
-                    print("Пора изменять stop-loss, новое значение {sl:0.8f}".format(sl=curr_rate_applied))                    
+                    print("It's time to change the stop-loss, the new value {sl:0.8f}".format(sl=curr_rate_applied))                    
                     settings['stop_loss_fixed'] = curr_rate_applied
             else:
-                # Цена поднялась выше Stop-Loss, Покупка по рынку
+                # Price rises above Stop-Loss, Market Buying
                 quantity = math.floor((settings['amount']/curr_rate)*(1/step_sizes[settings['symbol']]))/(1/step_sizes[settings['symbol']])
-                print("Цена поднялась выше Stop-Loss, Покупка по рынку, кол-во монет {quantity:0.8f}".format(quantity=quantity))
+                print("Price rises above Stop-Loss, Market Buying, Coins {quantity:0.8f}".format(quantity=quantity))
                 # math.Floor(coins*(1/stepSize)) / (1 / stepSize)
                 res = bot.createOrder(
                     symbol=settings['symbol'],
@@ -99,9 +99,9 @@ while True:
                     type='MARKET',
                     quantity=quantity
                 )
-                print('Результат создания ордера', res)
+                print('Order creation result', res)
                 if 'orderId' in res:
-                    # Создание ордера прошло успешно, выход
+                    # Creation of the order was successful, the exit
                     break
 
     except Exception as e:
