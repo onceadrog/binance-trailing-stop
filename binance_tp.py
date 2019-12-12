@@ -11,9 +11,12 @@ from datetime import datetime
 
 from binance_api import Binance
 
+API_KEY=api_key.API_ACCESS[1]
+API_SECRET=api_key.API_ACCESS[2]
+
 bot = Binance(
-    API_KEY='',
-    API_SECRET=''
+    API_KEY,
+    API_SECRET
 )
 
 settings = dict(
