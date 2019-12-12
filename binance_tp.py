@@ -11,8 +11,8 @@ from datetime import datetime
 
 from binance_api import Binance
 
-API_KEY=api_key.API_ACCESS[1]
-API_SECRET=api_key.API_ACCESS[2]
+API_KEY=api_key.API_ACCESS[0]
+API_SECRET=api_key.API_ACCESS[1]
 
 bot = Binance(
     API_KEY,
