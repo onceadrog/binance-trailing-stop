@@ -13,8 +13,8 @@ from binance_api import Binance
 import api_key
 
 bot = Binance(
-    API_KEY=api_key.API_KEY,
-    API_SECRET=api_key.API_SECRET
+    API_KEY=api_key.API_ACCESS[1]
+    API_SECRET=api_key.API_ACCESS[2]
 )
 
 settings = dict(
