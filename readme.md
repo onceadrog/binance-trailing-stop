@@ -6,3 +6,4 @@ Can work with long or short strategy.
 More information may be found in Russian [here](https://bablofil.ru/trailing-stop-binance/)
 
 ## Binance History retrieval to CSV
+binance_history.py provides a tool to retrieve historic market data
