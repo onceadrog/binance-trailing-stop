@@ -7,3 +7,7 @@ More information may be found in Russian [here](https://bablofil.ru/trailing-sto
 
 ## Binance History retrieval to CSV
 binance_history.py provides a tool to retrieve historic market data
+
+##API Credentials
+API credentials are stored in api_key.py to remove the need to manually remove keys from code on every commit.
+Just don't commit the api_key.py file... Easy!
