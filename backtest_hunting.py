@@ -10,16 +10,20 @@ from datetime import datetime
 #pool = multiprocessing.Pool(processes=3)  #ref: http://earthpy.org/speed.html
 
 #strategy variables
-hist_symbol = 'ETHUSDT'
+hist_symbol = 'BTCUSDT'
 stop_loss_threshold = 0.95  #to amend risk appetite
+scrape_profit = 0.5         #withdraw profit %
+scrape_threshold = 50000     #threshold of value to withdraw
+scrape_percent = 0.25        #percentage of profit to scrape
+fee_percent = 0.0005         #0.05%
 start_balance = 10000
 #ranges to test divide by 1000 to get 0.1 percent
 #note: largest number is not reached. [1,10] = 1-9 tested
 #300 options with current settings
 buy_min_range = [1,4]
 buy_max_range = [5,10]
-sell_min_range = [1,5]
-sell_max_range = [5,10]
+sell_min_range = [2,6]
+sell_max_range = [6,10]
 
 def strat(cur_volume,cur_percent,cur_close):
     if cur_percent >= buy_min and cur_percent <=buy_max:    #check if buy
@@ -50,14 +54,18 @@ max_profit = [0,0,0,0,0,0]
 iterations_tested = 0
 
 #Iterate file
-hist_fname = f"hist_{hist_symbol}.csv"
-with open(hist_fname) as f_input, open('ledger.csv','w',newline='\n') as f_output:
+hist_fname = f'./logs/hist_{hist_symbol}.csv'
+with open(hist_fname) as f_input, open(f'./logs/hunting_log_{hist_symbol}.csv','w',newline='\n') as f_output:
     csv_input = csv.reader(f_input)
     csv_output = csv.writer(f_output)
-    header_text = ['Currency pair','Profit %','Balance','Held balance','Held trades','Missed trades','Partial trades','Buy trades','Sell trades','Stop trades','Stop trade %','Buy min','Buy max','Sell min','Sell max','Stop loss threshold']
+    header_text = ['Currency pair','Profit %','Balance','Held balance','Withdrawn','Withdrawals',\
+                   'Trade volume','Fees paid','Held trades','Missed trades',\
+                   'Partial trades','Buy trades','Sell trades','Stop trades',\
+                   'Stop trade %','Buy min','Buy max','Sell min','Sell max',\
+                   'Stop loss threshold']
     csv_output.writerow(header_text)
     line_count = 0     #use % (mod) line_count for array position for smoothed history
-    print('Started logging to ledger.csv')
+    print(f'Started logging to ./logs/hunting_log_{hist_symbol}.csv')
     #iterate ranges of inputs
     for buy_min_i in range(*buy_min_range):
         for buy_max_i in range(*buy_max_range):
@@ -71,6 +79,10 @@ with open(hist_fname) as f_input, open('ledger.csv','w',newline='\n') as f_outpu
                     #set/reset per iteration variables
                     balance = start_balance
                     f_input.seek(2)
+                    fees = 0
+                    trade_volume_all = 0
+                    withdrawn = 0
+                    withdrawals = 0
                     line_count = 0
                     for row in csv_input:
                         if line_count <=2:
@@ -102,38 +114,61 @@ with open(hist_fname) as f_input, open('ledger.csv','w',newline='\n') as f_outpu
                                         if balance > 0:
                                                 buy_trades += 1
                                                 if trade_value > balance:   #don't spend more than you have
-                                                        trade_value = balance
-                                                        partial_trades += 1
-                                                        balance -= trade_value
-                                                        cur_trades.append([cur_close,trade_volume,stop_loss])
+                                                    cur_fees = fee_percent * balance
+                                                    trade_value = balance - cur_fees
+                                                    partial_trades += 1
+                                                    balance -= trade_value
+                                                    fees += cur_fees
+                                                    trade_volume_all += trade_volume
+                                                    cur_trades.append([cur_close,trade_volume,stop_loss])
                                                 else:
-                                                        balance -= trade_value
-                                                        cur_trades.append([cur_close,trade_volume,stop_loss])
+                                                    cur_fees = fee_percent * balance
+                                                    trade_value = balance - cur_fees
+                                                    balance -= trade_value
+                                                    fees += cur_fees
+                                                    trade_volume_all += trade_volume
+                                                    cur_trades.append([cur_close,trade_volume,stop_loss])
                                         else:
                                                 #don't trade
                                                 missed_trades += + 1
-                                if trade_value != 0:
-                                        #print(f'buy value:{trade_value} balance:{balance}')
-                                        trade_value = 0
                                 #review each trade still held
                                 result=[]
                                 for trade in cur_trades:
                                         if review_trades(cur_close,cur_percent,trade[2]) == 'sell':
                                                 #sell that trade, and don't store it to results of cur_trades
+                                                scrape_value = 0
                                                 sell_trades += 1
-                                                balance += (cur_close*trade[1])
+                                                trade_volume += trade[2]
+                                                cur_sell = cur_close*trade[1]
+                                                cur_fees = fee_percent * cur_sell
+                                                trade_profit = cur_sell/trade[0] - fee_percent
+                                                if trade_profit > scrape_profit:
+                                                    scrape_value += (cur_sell - cur_fees)-(trade[0]*trade[1])  #only scrape from net profit
+                                                if scrape_value < scrape_threshold:
+                                                    scrape_value = 0
+                                                else:
+                                                    scrape_value *= scrape_percent
+                                                    withdrawals += 1
+                                                withdrawn += scrape_value
+                                                balance += (cur_sell - cur_fees - scrape_value)
+                                                fees += cur_fees
+                                                trade_volume_all += trade_volume
                                                 #print(f'sell value:{cur_close*trade[1]} balance:{balance}')
                                         else:
                                                 if review_trades(cur_close,cur_percent,trade[2]) == 'stop':
                                                         #sell that trade, and don't store it to results of cur_trades
+                                                        trade_volume += trade[2]
+                                                        cur_sell = cur_close*trade[1]
+                                                        cur_fees = fee_percent * cur_sell
+                                                        balance += (cur_sell - cur_fees)
+                                                        fees += cur_fees
+                                                        trade_volume_all += trade_volume
                                                         balance += (cur_close*trade[1])
                                                         stop_trades += 1
                                                         #print(f'stop value:{cur_close*trade[1]} balance:{balance}')
                                                 else:
                                                         result.append(trade)  #store it for next check
                                 cur_trades = result  #store results back to trade list
-                                #output ledger
-                                #csv_output.writerow([cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance)])
                                 line_count += 1
                     #footer of trades still held and value
                     held_trades = 0
@@ -141,23 +176,23 @@ with open(hist_fname) as f_input, open('ledger.csv','w',newline='\n') as f_outpu
                     for trade in cur_trades:
                             held_balance += (cur_close*trade[1])
                             held_trades += 1
-                    profit = (balance + held_balance)/10000 - 1
+                    profit = (balance + held_balance+withdrawn)/start_balance - 1
                     #store max profit settings
                     if profit > max_profit[0]:
                             max_profit = [profit,buy_min,buy_max,sell_min,sell_max,stop_loss_threshold]
                     #log run
                     stop_trade_percent = stop_trades/sell_trades
                     log_data = [hist_symbol,'{:.2%}'.format(profit),'{:.4f}'.format(balance),'{:.4f}'.format(held_balance),\
-                                held_trades,missed_trades,partial_trades,buy_trades,sell_trades,stop_trades,'{:.2%}'.format(stop_trade_percent),\
+                                '{:.4f}'.format(withdrawn),withdrawals,trade_volume_all,fees,held_trades,missed_trades,partial_trades,\
+                                buy_trades,sell_trades,stop_trades,'{:.2%}'.format(stop_trade_percent),\
                                 '{:.2%}'.format(buy_min),'{:.2%}'.format(buy_max),'{:.2%}'.format(sell_min),'{:.2%}'.format(sell_max),\
                                 '{:.1%}'.format(stop_loss_threshold)]
                     print(*log_data)
                     csv_output.writerow(log_data)
         
 #Output max profit settings
-print(f'Last profit: {profit},{balance},{held_balance}')
-print(f'Max Profit: {max_profit[0]}')
-print(f'Buy Minimum: {max_profit[1]} Buy Maximum: {max_profit[2]}')
-print(f'Sell Minimum: {max_profit[3]} Buy Maximum: {max_profit[4]}')
-print(f'Stop loss: {max_profit[5]}')
+print('Max Profit: {:.2%}'.format(max_profit[0]))
+print('Buy Minimum: {:.2%} Buy Maximum: {:.2%}'.format(max_profit[1],max_profit[2]))
+print('Sell Minimum: {:.2%} Buy Maximum: {:.2%}'.format(max_profit[3],max_profit[4]))
+print('Stop loss: {:.1%}'.format(max_profit[5]))
 print(f'{iterations_tested} combinations tested')
