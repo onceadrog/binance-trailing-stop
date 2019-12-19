@@ -12,8 +12,8 @@ from datetime import datetime
 #strategy variables
 hist_symbol = 'BTCUSDT'
 balance = 10000
-buy_min = 0.001
-buy_max = 0.005
+buy_min = 0.002
+buy_max = 0.009
 sell_min = 0.004
 sell_max = 0.005
 stop_loss_threshold = 0.95
@@ -21,6 +21,7 @@ scrape_profit = 0.5         #withdraw profit %
 scrape_threshold = 50000     #threshold of value to withdraw
 scrape_percent = 0.25        #percentage of profit to scrape
 fee_percent = 0.0005         #0.05%
+spend_limit = 0.33           #only spend max 1/3 of available balance per buy
 
 def strat(cur_volume,cur_percent,cur_close):
     if cur_percent >= buy_min and cur_percent <= buy_max:    #check if buy
@@ -38,7 +39,6 @@ def review_trades(cur_close, cur_percent, stop_loss):
         return 'hold'
 
 #initialise variables
-hist_smooth = 5
 cur_trades=[]
 buy_trades = 0
 sell_trades = 0
@@ -61,7 +61,7 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
     csv_input = csv.reader(f_input)
     csv_output = csv.writer(f_output)
     csv_log = csv.writer(f_log)
-    csv_output.writerow(['cur_volume','cur_percent','cur_close','buy_sell_hold','trade_volume','balance','withdrawn'])
+    csv_output.writerow(['line','cur_volume','cur_percent','cur_close','buy_sell_hold','trade_volume','balance','withdrawn','bought at','net trade profit'])
     line_count = 0     #use % (mod) line_count for array position for smoothed history
     print('Started logging to ledger.csv')
     print('Buy Min:  {:.2%}    Buy Max: {:.2%}'.format(buy_min,buy_max))
@@ -72,12 +72,12 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
             #skip 2x header rows
             line_count += 1
         if line_count == 3:
-            cur_volume = float(row[3])
+            cur_volume = float(row[5])
             cur_close = float(row[4])
             line_count += 1
         if line_count >= 4:
             hist_close = cur_close
-            cur_volume = float(row[3])
+            cur_volume = float(row[5])
             cur_close = float(row[4])
             if cur_close != 0:
                 cur_percent = (cur_close - hist_close)/hist_close
@@ -96,28 +96,38 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
                 trade_value = cur_close * trade_volume
                 if balance > 0:
                     buy_trades += 1
-                    if trade_value > balance:   #don't spend more than you have
-                        trade_value = balance
+                    if trade_value > balance * spend_limit:   #don't spend more than you have
+                        trade_value = balance * spend_limit
                         partial_trades += 1
                         balance -= trade_value
+                        cur_fees = trade_value * fee_percent 
+                        trade_value -= cur_fees 
+                        trade_volume = trade_value / cur_close 
+                        fees += cur_fees 
                         cur_trades.append([cur_close,trade_volume,stop_loss])
                     else:
-                        balance -= trade_value
+                        balance -= trade_value 
+                        cur_fees = trade_value * fee_percent 
+                        trade_value -= cur_fees 
+                        trade_volume = trade_value / cur_close
+                        fees += cur_fees 
                         cur_trades.append([cur_close,trade_volume,stop_loss])
                 else:
                     #don't trade
                     missed_trades += + 1
-            if trade_value != 0:
-                #print(f'buy value:{trade_value} balance:{balance}')
-                trade_value = 0
+
+            #output ledger
+            csv_output.writerow([line_count,cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn])
+
             #review each trade still held
             result=[]
             for trade in cur_trades:
-                if review_trades(cur_close,cur_percent,trade[2]) == 'sell':
+                buy_sell_hold = review_trades(cur_close,cur_percent,trade[2])
+                if buy_sell_hold == 'sell':
                     #sell that trade, and don't store it to results of cur_trades
                     scrape_value = 0
                     sell_trades += 1
-                    trade_volume += trade[2]
+                    trade_volume = trade[1]
                     cur_sell = cur_close*trade[1]
                     cur_fees = fee_percent * cur_sell
                     trade_profit = cur_sell/trade[0] - fee_percent
@@ -131,12 +141,14 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
                     withdrawn += scrape_value
                     balance += (cur_sell - cur_fees - scrape_value)
                     fees += cur_fees
-                    trade_volume_all += trade_volume
+                    trade_volume_all += trade[1]
+                    net_profit = trade[0]*trade[1] - cur_sell - cur_fees
+                    csv_output.writerow([line_count,cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn, trade[0],net_profit])
                     #print(f'sell value:{cur_close*trade[1]} balance:{balance}')
                 else:
-                    if review_trades(cur_close,cur_percent,trade[2]) == 'stop':
+                    if buy_sell_hold == 'stop':
                         #sell that trade, and don't store it to results of cur_trades
-                        trade_volume += trade[2]
+                        trade_volume += trade[1]
                         cur_sell = cur_close*trade[1]
                         cur_fees = fee_percent * cur_sell
                         balance += (cur_sell - cur_fees)
@@ -144,12 +156,13 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
                         trade_volume_all += trade_volume
                         balance += (cur_close*trade[1])
                         stop_trades += 1
+                        net_profit = trade[0]*trade[1] - cur_sell - cur_fees
                         #print(f'stop value:{cur_close*trade[1]} balance:{balance}')
+                        csv_output.writerow([line_count,cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn,trade[0],net_profit])
                     else:
                         result.append(trade)  #store it for next check
+                    
             cur_trades = result  #store results back to trade list
-            #output ledger
-            csv_output.writerow([cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn])
             line_count += 1
     #footer of trades still held and value
     held_trades = 0
@@ -163,4 +176,4 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
     print(f'Balance: {balance}   Cash withdrawn: {withdrawn}')
     print(f'Balance of held trades: {held_balance} for {held_trades} trades')
     print('Min %: {:.2%}     Max %: {:.2%}'.format(min_percent,max_percent))
-    print("Profit over the year: {:.2%}".format((balance+held_trades+withdrawn)/10000 - 1))
+    print("Profit over the year: {:.2%}".format((balance + held_trades + withdrawn)/10000 - 1))
