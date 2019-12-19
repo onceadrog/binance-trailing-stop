@@ -1,6 +1,6 @@
 @ECHO OFF
 setlocal
 set PYTHONPATH=./
-python ./binance_tp.py
+python ./binance_ticker.py
 endlocal
 pause
