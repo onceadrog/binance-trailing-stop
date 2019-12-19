@@ -56,14 +56,14 @@ withdrawals = 0
 trade_volume_all = 0
 
 #Iterate file
-hist_fname = f"./logs/hist_{hist_symbol}.csv"
-with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as f_output, open('test_log.csv','a',newline='\n') as f_log:
+hist_fname = f"./logs/hist_{hist_symbol}_today.csv"
+with open(hist_fname) as f_input, open('./logs/ledger_today.csv','w',newline='\n') as f_output, open('test_log.csv','a',newline='\n') as f_log:
     csv_input = csv.reader(f_input)
     csv_output = csv.writer(f_output)
     csv_log = csv.writer(f_log)
-    csv_output.writerow(['line','cur_volume','cur_percent','cur_close','buy_sell_hold','trade_volume','balance','withdrawn','bought at','net trade profit'])
+    csv_output.writerow(['line','cur_volume','cur_percent','cur_close','buy_sell_hold','trade_volume','balance','withdrawn','trade_balance','net balance','bought at','net trade profit'])
     line_count = 0     #use % (mod) line_count for array position for smoothed history
-    print('Started logging to ledger.csv')
+    print('Started logging to ledger.csv.today')
     print('Buy Min:  {:.2%}    Buy Max: {:.2%}'.format(buy_min,buy_max))
     print('Sell Min: {:.2%}    Sell Max: {:.2%}'.format(sell_min,sell_max))
     print('Stop Loss Threshold {:.0%}'.format(stop_loss_threshold))
@@ -117,8 +117,11 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
                     missed_trades += + 1
 
             #output ledger
-            csv_output.writerow([line_count,cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn])
-
+            value_held_trades = 0
+            for trade in cur_trades:
+                value_held_trades += trade[1]*cur_close
+            csv_output.writerow([line_count,cur_volume,"{:.2%}".format(cur_percent),cur_close,buy_sell_hold,trade_volume,"{:.2f}".format(balance),withdrawn,value_held_trades,balance+withdrawn+value_held_trades])
+            
             #review each trade still held
             result=[]
             for trade in cur_trades:
@@ -176,4 +179,4 @@ with open(hist_fname) as f_input, open('./logs/ledger.csv','w',newline='\n') as 
     print(f'Balance: {balance}   Cash withdrawn: {withdrawn}')
     print(f'Balance of held trades: {held_balance} for {held_trades} trades')
     print('Min %: {:.2%}     Max %: {:.2%}'.format(min_percent,max_percent))
-    print("Profit over the year: {:.2%}".format((balance + held_balance + withdrawn)/10000 - 1))
+    print("Profit over the year: {:.2%}".format((balance + held_balance + withdrawn)/10000 - 1)) ##
