@@ -35,7 +35,7 @@ def ticker():
         trade_value = trade_volume * res[5]
         trade_volume = 'up to ${:6.4f} worth of {}'.format(trade_value,hist_symbol)
     buy_sell_hold = f'{buy_sell_hold} {trade_volume}'
-    print('Open: {:8.2f}  Close: {:8.2f}  Volume: {:9.4f}  # Trades: {:4.0f}  Percent Change: {:4.4%}'.format(float(res[1]),float(res[4]),float(res[5]),float(res[8]),percent_change),\
+    print('Open: {:8.2f}  Close: {:8.2f}  Volume: {:9.4f}  # Trades: {:4.0f}  Percent Change: {: 4.4%}'.format(float(res[1]),float(res[4]),float(res[5]),float(res[8]),percent_change),\
           f'Recommend: {buy_sell_hold}')
     res.append(buy_sell_hold)
     with open(filename, 'a', newline='\n') as myfile:
