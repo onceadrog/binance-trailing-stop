@@ -67,8 +67,7 @@ class Binance():
         headers = {}
 
         if self.methods[command]['private']:
-            payload.update({'timestamp': int(time.time()+self.shift_seconds-1) * 1000})
-
+            payload.update({'timestamp': int(time.time()+1) * 1000}) #was self.shift_seconds-1, now +5 because server offset
             sign = hmac.new(
                 key=self.API_SECRET,
                 msg=urllib.parse.urlencode(payload).encode('utf-8'),
@@ -82,7 +81,8 @@ class Binance():
             api_url += '?'+urllib.parse.urlencode(payload)
 
 
-        # payload = []        
+        # payload = []
+        #print (payload)
         response = requests.request(method=self.methods[command]['method'], url=api_url, data="" if self.methods[command]['method'] == 'GET' else payload, headers=headers)
         if 'code' in response.text:
             raise Exception(response.text)
