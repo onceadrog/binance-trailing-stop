@@ -111,6 +111,9 @@ def ticker(hist_symbol):
     print('{: <8} Open: {:4.7f}  Close: {:4.7f}  Volume: {:9.4f}  # Trades: {:4.0f}  Change: {: 4.4%}'.format(hist_symbol,float(res[1]),float(res[4]),float(res[5]),float(res[8]),percent_change))
     print('Recommend: {}   {}    {} Buy Bal: {}  Sell Bal: {}'.format(hist_symbol,buy_sell_hold_text,rel_bal,buy_bal,sell_bal))
     #Log details to file
+    buy_sell_hold = f'{buy_sell_hold} {trade_volume}'
+    print('Open: {:8.2f}  Close: {:8.2f}  Volume: {:9.4f}  # Trades: {:4.0f}  Percent Change: {: 4.4%}'.format(float(res[1]),float(res[4]),float(res[5]),float(res[8]),percent_change),\
+          f'Recommend: {buy_sell_hold}')
     res.append(buy_sell_hold)
     res.append(BTC_bal)
     with open(filename, 'a', newline='\n') as myfile:
