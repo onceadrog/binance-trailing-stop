@@ -49,7 +49,7 @@ class Binance():
         self.API_SECRET = bytearray(API_SECRET, encoding='utf-8')
         self.shift_seconds = 0
 
-    def set_shift_seconds(self, seconds):
+    def set_shift_offset(self, seconds):
         self.shift_seconds=seconds
 
     def __getattr__(self, name):
@@ -67,7 +67,7 @@ class Binance():
         headers = {}
 
         if self.methods[command]['private']:
-            payload.update({'timestamp': int(time.time()+1) * 1000}) #was self.shift_seconds-1, now +5 because server offset
+            payload.update({'timestamp': int(time.time()+self.shift_seconds)*1000}) #was self.shift_seconds-1, now +5 because server offset
             sign = hmac.new(
                 key=self.API_SECRET,
                 msg=urllib.parse.urlencode(payload).encode('utf-8'),
